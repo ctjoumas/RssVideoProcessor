@@ -18,8 +18,9 @@ namespace RssVideoProcessor
 
         private AzureBlobService _azureBlobService;
         private static readonly HttpClient httpClient = new HttpClient() { DefaultRequestHeaders = { { "User-Agent", "Azure Function" } } };
+        private AzureOpenAIService _azureOpenAIService;
 
-        public RssVideoProcessor(ILogger<RssVideoProcessor> logger)
+        public RssVideoProcessor(ILogger<RssVideoProcessor> logger, AzureOpenAIService azureOpenAIService)
         {
             _logger = logger;
 
@@ -28,6 +29,8 @@ namespace RssVideoProcessor
                 ConnectionString = Environment.GetEnvironmentVariable("BlobConnectionString", EnvironmentVariableTarget.Process),
                 ContainerName = Environment.GetEnvironmentVariable("ContainerName", EnvironmentVariableTarget.Process)
             };
+
+            _azureOpenAIService = azureOpenAIService;
         }
     
         /// <summary>
@@ -101,8 +104,6 @@ namespace RssVideoProcessor
         {
             var promptContent = await GetPromptContentAsync(req.Query["id"]);
 
-            // TODO: perform AI
-            var azureOpenAIService = new AzureOpenAIService();
             var contentBuilder = new StringBuilder();
 
             foreach (var section in promptContent.Sections)
@@ -112,7 +113,7 @@ namespace RssVideoProcessor
 
             var combinedContent = contentBuilder.ToString();
 
-            var chatResponse = await azureOpenAIService.GetChatResponseAsync(combinedContent);
+            var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent);
 
             return new OkObjectResult(chatResponse);
         }

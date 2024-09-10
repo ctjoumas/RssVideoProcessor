@@ -1,14 +1,9 @@
-﻿
-
-using Azure.AI.OpenAI;
-using Azure;
-using OpenAI.Chat;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Text;
 
 public class AzureOpenAIService
 {
-    private readonly AzureOpenAIClient _azureOpenAIClient;
-    private readonly ChatClient _chatClient;
-
     private const string SystemPrompt = @"
         You are an AI assistant that analyzes insights from a video and extracts key decisions that were made in the meetings from the speakers. 
         You will be given structured JSON in the following format:
@@ -46,29 +41,54 @@ public class AzureOpenAIService
         }]
         }";
 
+    private readonly string _azureOpenAIUrl;
+    private readonly string _apiKey;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public AzureOpenAIService()
+    public AzureOpenAIService(IHttpClientFactory httpClientFactory)
     {
-        var apiKey = Environment.GetEnvironmentVariable("AzureOpenAIKey", EnvironmentVariableTarget.Process);
+        _apiKey = Environment.GetEnvironmentVariable("AzureOpenAIKey", EnvironmentVariableTarget.Process);
         var endPoint = Environment.GetEnvironmentVariable("AzureOpenAIEndpoint", EnvironmentVariableTarget.Process);
         var modelName = Environment.GetEnvironmentVariable("ModelName", EnvironmentVariableTarget.Process);
-
-        _azureOpenAIClient = new(
-            new Uri(endPoint), new AzureKeyCredential(apiKey));
-
-        _chatClient = _azureOpenAIClient.GetChatClient(modelName);
+        var apiVersion = Environment.GetEnvironmentVariable("ApiVersion", EnvironmentVariableTarget.Process);
+        _httpClientFactory = httpClientFactory;
+        _azureOpenAIUrl = $"{endPoint}{modelName}/chat/completions?api-version={apiVersion}";
     }
 
     public async Task<string> GetChatResponseAsync(string prompt)
     {
-        ChatCompletion completion = await _chatClient.CompleteChatAsync(
-        [
-            // System messages represent instructions or other guidance about how the assistant should behave
-            new SystemChatMessage($"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Do not include anything else including ```json. Context: {prompt}"),
-            // User messages represent user input, whether historical or the most recen tinput
-            new UserChatMessage($"Using the provided context, please scan the content to determine if any key decisions were made.")
-        ]);
+        using HttpClient client = _httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("api-key", _apiKey);
 
-        return completion.Content[0].Text;
+        // Define the request payload for a chat completion
+        var requestPayload = new
+        {
+            messages = new[]
+            {
+                    new { role = "system", content = $"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Context: {prompt}" },
+                    new { role = "user", content = "Using the provided context, please scan the content to determine if any key decisions were made." }
+                },
+            max_tokens = 4096,  // Define the maximum number of tokens
+            temperature = 0.7,  // Optional, controls randomness of the response
+            response_format = new { type = "json_object" }
+        };
+
+        // Serialize the payload to JSON
+        var jsonPayload = JsonConvert.SerializeObject(requestPayload);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+        // Send POST request
+        var response = await client.PostAsync(_azureOpenAIUrl, content);
+
+        // Get the response content
+        var responseContent = await response.Content.ReadAsStringAsync();
+
+        // Parse the JSON response
+        JObject jsonResponse = JObject.Parse(responseContent);
+
+        // Extract the content from the message inside choices[0]
+        var messageContent = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
+
+        return messageContent;
     }
 }
