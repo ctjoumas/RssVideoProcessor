@@ -5,41 +5,12 @@ using System.Text;
 public class AzureOpenAIService
 {
     private const string SystemPrompt = @"
-        You are an AI assistant that analyzes insights from a video and extracts key decisions that were made in the meetings from the speakers. 
-        You will be given structured JSON in the following format:
-        ""sections"": [
-            {
-              ""id"": 0,
-              ""start"": ""0:00:00"",
-              ""end"": ""0:00:28.12"",
-              ""content"": ""[Video title] testName\n[Tags] Beginning\n[Visual labels] logo, font, colorfulness, tree, building, outdoor, sky, cloud, indoor, furniture, court\n[OCR] 08.26.24, DENVER, THE MILE HIGH CITY, CITY COUNCIL, LEGISLATIVE SESSION, NOW, DENVER CITY COUNCIL, WEEKLY LEGISLATIVE SESSION WITH ALL COUNCIL MEMBERS\n[Transcript] Welcome to your Denver City Council.\nPlease stand by.
-               \nFull coverage of your Denver City Council begins now.\nGood afternoon, everyone.""
-            },
-            {
-              ""id"": 1,
-              ""start"": ""0:00:28.12"",
-              ""end"": ""0:03:04.92"",
-              ""content"": ""[Video title] testName\n[Tags] Beginning\n[Detected objects] chair, cup, laptop\n[Visual labels] indoor, furniture, human face, laptop, computer, person, 
-                clothing, chair, man, flag, smile, woman\n[OCR] 08.26.24, DENVER CITY COUNCIL, WEEKLY LEGISLATIVE SESSION WITH ALL COUNCIL MEMBERS, DELL, DeLL, GILMORE, DEL\n[Transcript] Thank you for joining us.\nTonight's meeting is being interpreted into Spanish.\nSam, would you please introduce yourself and let our viewers know how to enable translation on their devices?\nYes, of course.\nThank you for having us today.\nGood afternoon.\nMy name is Sam Guzman with the CLC, and along with my colleague Alejandro, we will be interpreting today's meeting into Spanish.\nI'm going to give the instructions in Spanish on how to access interpretation.\nBuenastaris Atos MI nom de Samuel Guzman con la SE El SE Y contamente comico le Alejandro esta remos interpretando la reignon de oy El espanol sis Nos a companion oya travez zoom Vito almente por favor busquin supantaya unicono de Globo querice interpretacion O prima seboton EDI selecione a la opcion Perez cuchar en espanol muchas gracias and thank you very much.\nThank you, Sam.\nWelcome to the Denver City Council meeting of Monday, August 26th, 2024.\nCouncil members, please rise as you are able and join Council Member Gilmore in the Pledge of Allegiance.\nCouncil members, please join Council Member Gilmore as they lead us in the Denver City Council Land Acknowledgement.\nThank you, Council President.\nThe Denver City Council honors and acknowledges that the land on which we reside is the traditional territory of the Ute Cheyenne and Arapahoe peoples.\nWe also recognize the 48 contemporary tribal nations that are historically tied to the lands that make up the State of Colorado.\nWe honor Elders past, present, and future, and those who have stewarded this land throughout generations.\nWe also recognize that government, academic, and cultural institutions were founded upon and continue to enact exclusions and erasures of Indigenous peoples.\nMay this acknowledgement demonstrate a commitment to working to dismantle ongoing legacies of oppression and inequalities and recognize the current and future contributions of Indigenous communities in Denver.\nThank you, Councilwoman.\nMadam Secretary, Roll.""
-            }
-        ]
-
-        Each node of the JSON is a section extracted from the video analysis. If a key decision is made during the meeting, you will return the following list of JSON items for each key decision:
-
-        {
-        ""extracted_decision"": [
-        {
-        ""start"": ""01:24:22"",
-        ""end"":""01:26:11"",
-        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
-            of snow days that took place during the school year""
-        },
-        {
-        ""start"": ""01:41:22"",
-        ""end"":""01:42:11"",
-        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
-        }]
-        }";
+        You are an AI assistant that helps generate JSON documents by reading the input JSON list and creating a new one with metadata details generated using the input.
+        You are provided a list of JSONs which contains chunks from a video file. Each chunk is from within a time window in the original video file and contains the content from
+        that chunk as captured by the Azure Video Indexer service. For the video chunks provided in the user message, modify each chunk by adding a summary field and an actionableInsights 
+        field. The summary field should contain the summary of the content field and the actionableInsights field should contain any action insights from the content field. 
+        The output JSON list should have the same structure as the input JSON list but the new JSONs should only contain the new metadata fields as specified above along with
+        the chunk timestamps from the original prompt chunks.";
 
     private readonly string _azureOpenAIUrl;
     private readonly string _apiKey;
@@ -65,12 +36,46 @@ public class AzureOpenAIService
         {
             messages = new[]
             {
-                    new { role = "system", content = $"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Context: {prompt}" },
+                    new { role = "system", content = $"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Context: {prompt}" },
                     new { role = "user", content = "Using the provided context, please scan the content to determine if any key decisions were made." }
                 },
             max_tokens = 4096,  // Define the maximum number of tokens
-            temperature = 0.7,  // Optional, controls randomness of the response
-            response_format = new { type = "json_object" }
+            temperature = 0.7,  // Optional, controls randomness of the response,
+            response_format = new
+            {
+                type = "json_schema",
+                json_schema = new
+                {
+                    name = "KeyInsightsResponse",
+                    strict = true,
+                    schema = new
+                    {
+                        type = "object",
+                        properties = new
+                        {
+                            start = new { type = "string" },
+                            end = new { type = "string" },
+                            key_decision = new
+                            {
+                                type = "array",
+                                items = new
+                                {
+                                    type = "object",
+                                    properties = new
+                                    {
+                                        decision = new { type = "string" },
+                                        confidence = new { type = "number" }
+                                    },
+                                    required = new[] { "decision", "confidence" },
+                                    additionalProperties = false
+                                }
+                            }
+                        },
+                        required = new[] { "start", "end", "key_decision" },
+                        additionalProperties = false
+                    }
+                }
+            }
         };
 
         // Serialize the payload to JSON
