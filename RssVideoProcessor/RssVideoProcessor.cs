@@ -8,6 +8,7 @@ namespace RssVideoProcessor
     using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Logging;
     using System;
+    using System.Text;
     using System.Web;
     using System.Xml;
 
@@ -101,8 +102,19 @@ namespace RssVideoProcessor
             var promptContent = await GetPromptContentAsync(req.Query["id"]);
 
             // TODO: perform AI
+            var azureOpenAIService = new AzureOpenAIService();
+            var contentBuilder = new StringBuilder();
 
-            return new OkObjectResult(string.Empty);
+            foreach (var section in promptContent.Sections)
+            {
+                contentBuilder.AppendLine(section.Content);
+            }
+
+            var combinedContent = contentBuilder.ToString();
+
+            var chatResponse = await azureOpenAIService.GetChatResponseAsync(combinedContent);
+
+            return new OkObjectResult(chatResponse);
         }
 
         private async Task<PromptContent> GetPromptContentAsync(string videoId)
