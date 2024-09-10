@@ -65,8 +65,13 @@
         public async Task UploadFromStreamAsync(MemoryStream videoMemoryStream, string fileName)
         {
             BlobClient blobClient = new BlobClient(ConnectionString, ContainerName, fileName);
-            videoMemoryStream.Position = 0;
-            await blobClient.UploadAsync(videoMemoryStream, true);
+            bool blobExists = await blobClient.ExistsAsync();
+
+            if (!blobExists)
+            {
+                videoMemoryStream.Position = 0;
+                await blobClient.UploadAsync(videoMemoryStream, true);
+            }
         }
     }
 }
