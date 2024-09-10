@@ -64,11 +64,10 @@ public class AzureOpenAIService
         ChatCompletion completion = await _chatClient.CompleteChatAsync(
         [
             // System messages represent instructions or other guidance about how the assistant should behave
-            new SystemChatMessage($"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Context: {prompt}"),
+            new SystemChatMessage($"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Do not include anything else including ```json. Context: {prompt}"),
             // User messages represent user input, whether historical or the most recen tinput
             new UserChatMessage($"Using the provided context, please scan the content to determine if any key decisions were made.")
         ]);
-
 
         return completion.Content[0].Text;
     }
