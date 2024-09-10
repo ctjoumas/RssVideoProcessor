@@ -2,6 +2,7 @@
 {
     using Azure.Core;
     using Azure.Identity;
+    using Azure.Storage.Blobs.Models;
     using Microsoft.Extensions.Logging;
     using Microsoft.Identity.Client;
     using Newtonsoft.Json.Linq;
@@ -30,7 +31,7 @@
         /// Builds the Video Indexer Resource Provider Client with the proper token for authorization.
         /// </summary>
         /// <returns></returns>
-        async public static Task<VideoIndexerResourceProviderClient> BuildVideoIndexerResourceProviderClient()
+        public async static Task<VideoIndexerResourceProviderClient> BuildVideoIndexerResourceProviderClient()
         {
             var tokenRequestContext = new TokenRequestContext(new[] { $"{AzureResourceManager}/.default" });
             var tokenRequestResult = await new DefaultAzureCredential(new DefaultAzureCredentialOptions { ExcludeEnvironmentCredential = true }).GetTokenAsync(tokenRequestContext);
