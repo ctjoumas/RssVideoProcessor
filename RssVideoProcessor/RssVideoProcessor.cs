@@ -66,7 +66,23 @@ namespace RssVideoProcessor
                 {
                     var promptContent = await GetPromptContentAsync(req.Query["id"]);
 
-                    // TODO: perform AI
+                    if (promptContent.Sections != null)
+                    {
+                        var contentBuilder = new StringBuilder();
+
+                        foreach (var section in promptContent.Sections)
+                        {
+                            contentBuilder.AppendLine(section.Content);
+                        }
+
+                        var combinedContent = contentBuilder.ToString();
+
+                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent);
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"No prompt content found for video ID {req.Query["id"]}");
+                    }
                 }
                 else if (req.Query["state"].Equals(ProcessingState.Failed.ToString()))
                 {
