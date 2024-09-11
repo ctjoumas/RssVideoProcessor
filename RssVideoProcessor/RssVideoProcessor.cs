@@ -102,7 +102,18 @@ namespace RssVideoProcessor
         [Function("ProcessPromptContent")]
         public async Task<IActionResult> ProcessPromptContent([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
         {
+            var id = req.Query["id"].ToString();
+            if (string.IsNullOrEmpty(id))
+            {
+                return new BadRequestObjectResult("The 'id' query parameter is missing or empty.");
+            }
+
             var promptContent = await GetPromptContentAsync(req.Query["id"]);
+            
+            if (promptContent.Sections == null)
+            {
+                return new NoContentResult();
+            }
 
             var contentBuilder = new StringBuilder();
 
