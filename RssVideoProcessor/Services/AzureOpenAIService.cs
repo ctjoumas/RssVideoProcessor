@@ -91,4 +91,77 @@ public class AzureOpenAIService
 
         return messageContent;
     }
+
+    public async Task<string> GetChunkedChatResponseAsync(string prompt, int chunkSize = 3000)
+    {
+        // Split the prompt into chunks of manageable size (below the token limit of 4096)
+        List<string> promptChunks = SplitIntoChunks(prompt, chunkSize);
+
+        // Create a list of tasks to handle the API calls concurrently
+        List<Task<string>> tasks = new List<Task<string>>();
+
+        foreach (var chunk in promptChunks)
+        {
+            tasks.Add(GetChatResponseAsync(chunk));
+        }
+
+        string[] responses = await Task.WhenAll(tasks);
+
+        // Initialize a list to aggregate the decisions
+        JArray aggregatedDecisions = new JArray();
+
+        // Iterate through each response, parse, and extract valid decisions
+        foreach (var response in responses)
+        {
+            if (!string.IsNullOrWhiteSpace(response) && HasValidDecisions(response))
+            {
+                JObject parsedResponse = JObject.Parse(response);
+                JArray extractedDecision = (JArray)parsedResponse["extracted_decision"];
+
+                if (extractedDecision != null && extractedDecision.Count > 0)
+                {
+                    // Add the extracted decisions from this chunk to the aggregated list
+                    aggregatedDecisions.Merge(extractedDecision);
+                }
+            }
+        }
+
+        // Create the final structured response with "extracted_decision" at the top
+        JObject finalResponse = new JObject
+        {
+            ["extracted_decision"] = aggregatedDecisions
+        };
+
+        return finalResponse.ToString();
+    }
+
+    // Helper method to check if the response contains valid decisions
+    private bool HasValidDecisions(string jsonResponse)
+    {
+        if (string.IsNullOrWhiteSpace(jsonResponse))
+        {
+            return false;
+        }
+
+        JObject parsedResponse = JObject.Parse(jsonResponse);
+        JArray extractedDecision = (JArray)parsedResponse["extracted_decision"];
+
+        return extractedDecision != null && extractedDecision.Count > 0;
+    }
+
+    private List<string> SplitIntoChunks(string text, int chunkSize)
+    {
+        List<string> chunks = new List<string>();
+
+        // Start splitting the text into chunks of the specified size
+        for (int i = 0; i < text.Length; i += chunkSize)
+        {
+            // Ensure we don't exceed the length of the text
+            int length = Math.Min(chunkSize, text.Length - i);
+
+            chunks.Add(text.Substring(i, length));
+        }
+
+        return chunks;
+    }
 }
