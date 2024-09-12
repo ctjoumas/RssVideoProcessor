@@ -3,6 +3,7 @@ using Azure;
 using Microsoft.Identity.Client;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RssVideoProcessor.Schemas;
 using System.Text;
 using RssVideoProcessor.Schemas;
 
@@ -128,14 +129,12 @@ public class AzureOpenAIService
         You will be given structured JSON in the following format:
         ""sections"": [
             {
-              ""id"": 0,
               ""start"": ""0:00:00"",
               ""end"": ""0:00:28.12"",
               ""content"": ""[Video title] testName\n[Tags] Beginning\n[Visual labels] logo, font, colorfulness, tree, building, outdoor, sky, cloud, indoor, furniture, court\n[OCR] 08.26.24, DENVER, THE MILE HIGH CITY, CITY COUNCIL, LEGISLATIVE SESSION, NOW, DENVER CITY COUNCIL, WEEKLY LEGISLATIVE SESSION WITH ALL COUNCIL MEMBERS\n[Transcript] Welcome to your Denver City Council.\nPlease stand by.
-               \nFull coverage of your Denver City Council begins now.\nGood afternoon, everyone.""
+               Full coverage of your Denver City Council begins now.\nGood afternoon, everyone.""
             },
             {
-              ""id"": 1,
               ""start"": ""0:00:28.12"",
               ""end"": ""0:03:04.92"",
               ""content"": ""[Video title] testName\n[Tags] Beginning\n[Detected objects] chair, cup, laptop\n[Visual labels] indoor, furniture, human face, laptop, computer, person, 
@@ -147,18 +146,18 @@ public class AzureOpenAIService
 
         {
         ""extracted_decision"": [
-        {
-        ""start"": ""01:24:22"",
-        ""end"":""01:26:11"",
-        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
-            of snow days that took place during the school year""
-        },
-        {
-        ""start"": ""01:41:22"",
-        ""end"":""01:42:11"",
-        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
-        }]
-        }";
+            {
+            ""start"": ""01:24:22"",
+            ""end"":""01:26:11"",
+            ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
+                of snow days that took place during the school year""
+            },
+            {
+            ""start"": ""01:41:22"",
+            ""end"":""01:42:11"",
+            ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
+            }]
+            }";
 
     private readonly string _azureOpenAIUrl;
     private readonly string _apiKey;
@@ -359,5 +358,78 @@ public class AzureOpenAIService
         var messageContent = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
 
         return messageContent;
+    }
+
+    public async Task<string> GetChunkedChatResponseAsync(string prompt, int chunkSize = 3000)
+    {
+        // Split the prompt into chunks of manageable size (below the token limit of 4096)
+        List<string> promptChunks = SplitIntoChunks(prompt, chunkSize);
+
+        // Create a list of tasks to handle the API calls concurrently
+        List<Task<string>> tasks = new List<Task<string>>();
+
+        foreach (var chunk in promptChunks)
+        {
+            tasks.Add(GetChatResponseAsync(chunk));
+        }
+
+        string[] responses = await Task.WhenAll(tasks);
+
+        // Initialize a list to aggregate the decisions
+        JArray aggregatedDecisions = new JArray();
+
+        // Iterate through each response, parse, and extract valid decisions
+        foreach (var response in responses)
+        {
+            if (!string.IsNullOrWhiteSpace(response) && HasValidDecisions(response))
+            {
+                JObject parsedResponse = JObject.Parse(response);
+                JArray extractedDecision = (JArray)parsedResponse["extracted_decision"];
+
+                if (extractedDecision != null && extractedDecision.Count > 0)
+                {
+                    // Add the extracted decisions from this chunk to the aggregated list
+                    aggregatedDecisions.Merge(extractedDecision);
+                }
+            }
+        }
+
+        // Create the final structured response with "extracted_decision" at the top
+        JObject finalResponse = new JObject
+        {
+            ["extracted_decision"] = aggregatedDecisions
+        };
+
+        return finalResponse.ToString();
+    }
+
+    // Helper method to check if the response contains valid decisions
+    private bool HasValidDecisions(string jsonResponse)
+    {
+        if (string.IsNullOrWhiteSpace(jsonResponse))
+        {
+            return false;
+        }
+
+        JObject parsedResponse = JObject.Parse(jsonResponse);
+        JArray extractedDecision = (JArray)parsedResponse["extracted_decision"];
+
+        return extractedDecision != null && extractedDecision.Count > 0;
+    }
+
+    private List<string> SplitIntoChunks(string text, int chunkSize)
+    {
+        List<string> chunks = new List<string>();
+
+        // Start splitting the text into chunks of the specified size
+        for (int i = 0; i < text.Length; i += chunkSize)
+        {
+            // Ensure we don't exceed the length of the text
+            int length = Math.Min(chunkSize, text.Length - i);
+
+            chunks.Add(text.Substring(i, length));
+        }
+
+        return chunks;
     }
 }
