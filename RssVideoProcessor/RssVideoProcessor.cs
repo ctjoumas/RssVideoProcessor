@@ -71,13 +71,6 @@ namespace RssVideoProcessor
                     {
                         JObject sectionsJson = BuildSectionsJsonAsync(promptContent);
 
-                        foreach (var section in promptContent.Sections)
-                        {
-                            contentBuilder.AppendLine(section.Content);
-                        }
-
-                        var combinedContent = contentBuilder.ToString();
-
                         // check if we are running the unit test or not; if we are running a unit test, the initial
                         // LLM response will return the answer without any scoring or validation so that the unit test
                         // for correctness can be done. If we are not running a unit test, the initial LLM response
@@ -85,7 +78,7 @@ namespace RssVideoProcessor
                         // reasoning/thought for the answer in the returned JSON
                         string runUnitTest = req.Query["runUnitTest"].ToString();
 
-                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent, runUnitTest);
+                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString(), runUnitTest);
                     }
                     else
                     {

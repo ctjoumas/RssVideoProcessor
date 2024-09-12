@@ -227,7 +227,7 @@ public class AzureOpenAIService
         Console.WriteLine(validatedResponse);
 
         // If we are not running a unit test, return the validated response which will include the score and thoughts
-        if (runUnitTest == "0")
+        if (runUnitTest == "0" || string.IsNullOrWhiteSpace(runUnitTest))
         {
             messageContent = validatedResponse;
         }
@@ -370,7 +370,7 @@ public class AzureOpenAIService
 
         foreach (var chunk in promptChunks)
         {
-            tasks.Add(GetChatResponseAsync(chunk));
+            tasks.Add(GetChatResponseAsync(chunk, string.Empty));
         }
 
         string[] responses = await Task.WhenAll(tasks);
