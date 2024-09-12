@@ -69,7 +69,7 @@ namespace RssVideoProcessor
 
                     if (promptContent.Sections != null)
                     {
-                        JObject sectionsJson = BuildVideoJsonAsync(promptContent);
+                        JObject sectionsJson = BuildSectionsJsonAsync(promptContent);
 
                         var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString());
                     }
@@ -125,7 +125,7 @@ namespace RssVideoProcessor
                 return new NoContentResult();
             }
 
-            JObject sectionsJson = BuildVideoJsonAsync(promptContent);
+            JObject sectionsJson = BuildSectionsJsonAsync(promptContent);
              
             var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString());
 
@@ -233,7 +233,7 @@ namespace RssVideoProcessor
             }
         }
 
-        private JObject BuildVideoJsonAsync(PromptContent promptContent)
+        private JObject BuildSectionsJsonAsync(PromptContent promptContent)
         {
             // Initialize a JArray to hold all the sections
             JArray sectionsArray = new JArray();
