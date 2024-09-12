@@ -77,7 +77,14 @@ namespace RssVideoProcessor
 
                         var combinedContent = contentBuilder.ToString();
 
-                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent);
+                        // check if we are running the unit test or not; if we are running a unit test, the initial
+                        // LLM response will return the answer without any scoring or validation so that the unit test
+                        // for correctness can be done. If we are not running a unit test, the initial LLM response
+                        // will be run through the validation process to ensure the answer is correct and provide a score
+                        // reasoning/thought for the answer in the returned JSON
+                        string runUnitTest = req.Query["runUnitTest"].ToString();
+
+                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent, runUnitTest);
                     }
                     else
                     {
@@ -140,7 +147,19 @@ namespace RssVideoProcessor
 
             var combinedContent = contentBuilder.ToString();
 
-            var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent);
+            // check if we are running the unit test or not; if we are running a unit test, the initial
+            // LLM response will return the answer without any scoring or validation so that the unit test
+            // for correctness can be done. If we are not running a unit test, the initial LLM response
+            // will be run through the validation process to ensure the answer is correct and provide a score
+            // reasoning/thought for the answer in the returned JSON
+            string runUnitTest = req.Query["runUnitTest"].ToString();
+
+            var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent, runUnitTest);            
+
+            if (runUnitTest == "1")
+            {
+                chatResponse = await _azureOpenAIService.RunUnitTestValidationAsync(chatResponse);
+            }
 
             return new OkObjectResult(chatResponse);
         }
