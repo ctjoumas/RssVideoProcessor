@@ -1,12 +1,131 @@
-﻿using Newtonsoft.Json;
+﻿using Azure.Messaging;
+using Azure;
+using Microsoft.Identity.Client;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RssVideoProcessor.Schemas;
 using System.Text;
+using RssVideoProcessor.Schemas;
 
 public class AzureOpenAIService
 {
+    // Similar to the CorrectnessPrompt below, this will measure correctness of the LLM response, but it will compare this against a ground truth response for a known video so it can tell whether or not
+    // the proper decisions were pulled out of the video by the LLM.
+    private string UnitTestCorrectnessPrompt = @"You are an AI evaluator.
+        The 'correctness metric' is a measure of if the generated answer is correct based on the ground truth answer. You will be given the generated answer and the ground truth answers, both of which will be a JSON list of extracted decisions in the following format:
+
+        {
+        ""extracted_decision"": [
+        {
+        ""start"": ""01:24:22"",
+        ""end"":""01:26:11"",
+        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
+            of snow days that took place during the school year""
+        },
+        {
+        ""start"": ""01:41:22"",
+        ""end"":""01:42:11"",
+        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
+        }]
+        }
+
+        You need to compare each extracted_decision item from both the generated answer and ground truth answer an score each extracted_decision of the answer between one to five using the following rating scale:
+        One: The answer is incorrect
+        Three: The answer is partially correct, but could be missing some key context or nuance tha tmakes it potentially misleading or incomplete compared to the context provided.
+        Five: The answer is correct and complete based on the context provided.
+
+        You must also provide your reasoning as to why the rating you selected was given.
+
+        The rating value should always be either 1, 3, or 5.
+
+        You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response. An example response is shown below:
+
+        {
+        ""extracted_decision"": [
+        {
+        ""start"": ""01:24:22"",
+        ""end"":""01:26:11"",
+        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
+            of snow days that took place during the school year"".
+        ""thoughts"": ""The answer is correct because John mentioned the decision to extend the school day by 15 minutes each day to make up for the snow days."",
+        ""rating"": 5
+        },
+        {
+        ""start"": ""01:41:22"",
+        ""end"":""01:42:11"",
+        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school"",
+        ""thoughts"": ""The answer is incorrect because the ground truth answer did not contain this decision, so it is completely incorrect and should be rated 1 star."",
+        ""rating"": 1
+        }]
+        }
+
+        
+        question: Using the provided context, please scan the content to determine if any key decisions were made.
+        ground_truth: {ground_truth}
+        answer: {answer}
+        thoughts:
+        rating:
+        ";
+
+    // This prompt will be used to determine correctness of the LLM response by generating a rating and throughts for each key decision extracted from the answer.
+    private string CorrectnessPrompt = @"You are an AI evaluator.
+        The 'correctness metric' is a measure of if the generated answer is correct based on the context provided. The generated answer will be a JSON list of extracted decisions in the following format:
+
+        {
+        ""extracted_decision"": [
+        {
+        ""start"": ""01:24:22"",
+        ""end"":""01:26:11"",
+        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
+            of snow days that took place during the school year""
+        },
+        {
+        ""start"": ""01:41:22"",
+        ""end"":""01:42:11"",
+        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
+        }]
+        }
+
+        You will need to compare each extracted_decision item from the answer to the context provided and score each extracted_decision item between one to five using the following rating scale:
+        One: The answer is incorrect
+        Three: The answer is partially correct, but could be missing some key context or nuance tha tmakes it potentially misleading or incomplete compared to the context provided.
+        Five: The answer is correct and complete based on the context provided.
+
+        You must also provide your reasoning as to why the rating you selected was given.
+
+        The rating value should always be either 1, 3, or 5.
+
+        You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response. An example response is shown below:
+
+        {
+        ""extracted_decision"": [
+        {
+        ""start"": ""01:24:22"",
+        ""end"":""01:26:11"",
+        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
+            of snow days that took place during the school year"".
+        ""thoughts"": ""The answer is correct because John mentioned the decision to extend the school day by 15 minutes each day to make up for the snow days."",
+        ""rating"": 5
+        },
+        {
+        ""start"": ""01:41:22"",
+        ""end"":""01:42:11"",
+        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school"",
+        ""thoughts"": ""The answer is incorrect because Judy did not mention adding an extra day of PE to each week of school."",
+        ""rating"": 1
+        }]
+        }
+
+        
+        question: Using the provided context, please scan the content to determine if any key decisions were made.
+        context: {context}
+        answer: {answer}
+        thoughts:
+        rating:
+        ";
+
     private const string SystemPrompt = @"
-        You are an AI assistant that analyzes insights from a video and extracts key decisions that were made in the meetings from the speakers. 
+        You are an AI assistant that analyzes insights from a video and extracts important moments that occurred made in the meetings from the speakers to include key decisions made as well as any heightened emotions such as excitement, anger, or sadness.
         You will be given structured JSON in the following format:
         ""sections"": [
             {
@@ -44,6 +163,7 @@ public class AzureOpenAIService
     private readonly string _apiKey;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ISchemaLoader _schemaLoader;
+
     public AzureOpenAIService(IHttpClientFactory httpClientFactory)
     {
         _apiKey = Environment.GetEnvironmentVariable("AzureOpenAIKey", EnvironmentVariableTarget.Process);
@@ -55,7 +175,15 @@ public class AzureOpenAIService
         _schemaLoader = new SchemaLoader(@".\Schemas");
     }
 
-    public async Task<string> GetChatResponseAsync(string prompt)
+    /// <summary>
+    /// Uses the LLM to scan the entire prompt content from a video and determine if any key decisions were made. If
+    /// we are running a unit test (pre-production) where we have ground truth data to compare the answers again, we
+    /// will not run any validation in this method, so no score or thoughts will be returned in the JSON response.
+    /// </summary>
+    /// <param name="promptContent">The full PromptContent from video indexer for the given video</param>
+    /// <param name="runUnitTest">Whether we are running a unit test against ground truth data for a known video</param>
+    /// <returns></returns>
+    public async Task<string> GetChatResponseAsync(string promptContent, string runUnitTest)
     {
         using HttpClient client = _httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Add("api-key", _apiKey);
@@ -65,15 +193,15 @@ public class AzureOpenAIService
         {
             messages = new[]
             {
-                    new { role = "system", content = $"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Context: {prompt}" },
-                    new { role = "user", content = "Using the provided context, please scan the content to determine if any key decisions were made." }
-                },
+                new { role = "system", content = $"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Context: {promptContent}" },
+                new { role = "user", content = "Using the provided context, please scan the content to determine if any key decisions were made." }
+            },
             max_tokens = 4096,  // Define the maximum number of tokens
             temperature = 0.7,  // Optional, controls randomness of the response
-            response_format = new { type="json_object" }
-            //response_format = new 
-            //{ 
-            //    type = "json_object", 
+            response_format = "json_object"
+            //response_format = new
+            //{
+            //    type = "json_schema",
             //    json_schema = _schemaLoader.LoadSchema("Insights.json")
             //},
         };
@@ -83,6 +211,141 @@ public class AzureOpenAIService
         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
         // Send POST request
+        var response = await client.PostAsync(_azureOpenAIUrl, content);
+
+        // Get the response content
+        var responseContent = await response.Content.ReadAsStringAsync();
+
+        // Parse the JSON response
+        JObject jsonResponse = JObject.Parse(responseContent);
+
+        // Extract the content from the message inside choices[0]
+        var messageContent = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
+
+        string validatedResponse = await RunValidationAsync(promptContent, messageContent);
+
+        Console.WriteLine(validatedResponse);
+
+        // If we are not running a unit test, return the validated response which will include the score and thoughts
+        if (runUnitTest == "0")
+        {
+            messageContent = validatedResponse;
+        }
+
+        return messageContent;
+    }
+
+    /// <summary>
+    /// Runs a validation, using the LLM as a judge, to comapre the answer generated by the LLM to the context provided,
+    /// where the context is the promptcontent from video indexer.
+    /// </summary>
+    /// <param name="context">The full PromptContent data from Video Indexer</param>
+    /// <param name="answer">The answer the LLM generated when identifying key points in the video</param>
+    /// <returns></returns>
+    public async Task<string> RunValidationAsync(string context, string answer)
+    {
+        using HttpClient client = _httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("api-key", _apiKey);
+
+        // Testing bad response
+        answer = @"
+        {  
+          ""extracted_decision"": [  
+            {  
+              ""start"": ""0:07:58.48"",  
+              ""end"": ""0:10:31.48"",  
+              ""key_decision"": ""Council Member Gilmore said hello.""  
+            },  
+            {  
+              ""start"": ""0:16:58.2"",  
+              ""end"": ""0:19:24.8"",  
+              ""key_decision"": ""Council Member Lewis ate an apple""  
+            },  
+            {  
+              ""start"": ""0:26:29.8"",  
+              ""end"": ""0:30:59.56"",  
+              ""key_decision"": ""The lights went out.""  
+            }
+          ]  
+        }  
+        ";
+
+        CorrectnessPrompt = CorrectnessPrompt.Replace("{context}", context);
+        CorrectnessPrompt = CorrectnessPrompt.Replace("{answer}", answer);
+
+        var requestPayload = new
+        {
+            messages = new[]
+            {
+                new { role = "system", content = $"You are an AI assistant evaluating the quality of answers." },
+                new { role = "user", content = CorrectnessPrompt }
+            },
+            max_tokens = 4096,  // Define the maximum number of tokens
+            temperature = 0.7,  // Optional, controls randomness of the response
+            response_format = "json_object"
+            //response_format = new
+            //{
+            //    type = "json_schema",
+            //    json_schema = _schemaLoader.LoadSchema("Insights.json")
+            //},
+        };
+
+        // Serialize the payload to JSON
+        var jsonPayload = JsonConvert.SerializeObject(requestPayload);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync(_azureOpenAIUrl, content);
+
+        // Get the response content
+        var responseContent = await response.Content.ReadAsStringAsync();
+
+        // Parse the JSON response
+        JObject jsonResponse = JObject.Parse(responseContent);
+
+        // Extract the content from the message inside choices[0]
+        var messageContent = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
+
+        return messageContent;
+    }
+
+    /// <summary>
+    /// This method will be used to validate the correctness of the LLM response by comparing it to a ground truth response for a known video.
+    /// </summary>
+    /// <param name="answer">The JSON representation of the LLM response</param>
+    /// <returns></returns>
+    public async Task<string> RunUnitTestValidationAsync(string answer)
+    {
+        // load the ground truth answers from a given JSON file
+        string groundTruthFileName = Environment.GetEnvironmentVariable("GroundTruthFile", EnvironmentVariableTarget.Process);
+        string groundTruthData = File.ReadAllText(groundTruthFileName);
+        JObject groundTruthDataJson = JObject.Parse(groundTruthData);        
+
+        using HttpClient client = _httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("api-key", _apiKey);
+
+        UnitTestCorrectnessPrompt = UnitTestCorrectnessPrompt.Replace("{ground_truth}", groundTruthDataJson.ToString());
+        UnitTestCorrectnessPrompt = UnitTestCorrectnessPrompt.Replace("{answer}", answer);
+
+        var requestPayload = new
+        {
+            messages = new[]
+            {
+                new { role = "system", content = $"You are an AI assistant evaluating the correctness of answers." },
+                new { role = "user", content = UnitTestCorrectnessPrompt }
+            },
+            max_tokens = 4096,  // Define the maximum number of tokens
+            temperature = 0.7,  // Optional, controls randomness of the response
+            response_format = new
+            {
+                type = "json_schema",
+                json_schema = _schemaLoader.LoadSchema("Validation.json")
+            }
+        };
+
+        // Serialize the payload to JSON
+        var jsonPayload = JsonConvert.SerializeObject(requestPayload);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
         var response = await client.PostAsync(_azureOpenAIUrl, content);
 
         // Get the response content
