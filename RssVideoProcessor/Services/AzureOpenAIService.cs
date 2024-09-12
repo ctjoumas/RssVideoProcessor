@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RssVideoProcessor.Schemas;
 using System.Text;
 
 public class AzureOpenAIService
@@ -42,7 +43,7 @@ public class AzureOpenAIService
     private readonly string _azureOpenAIUrl;
     private readonly string _apiKey;
     private readonly IHttpClientFactory _httpClientFactory;
-
+    private readonly ISchemaLoader _schemaLoader;
     public AzureOpenAIService(IHttpClientFactory httpClientFactory)
     {
         _apiKey = Environment.GetEnvironmentVariable("AzureOpenAIKey", EnvironmentVariableTarget.Process);
@@ -51,6 +52,7 @@ public class AzureOpenAIService
         var apiVersion = Environment.GetEnvironmentVariable("ApiVersion", EnvironmentVariableTarget.Process);
         _httpClientFactory = httpClientFactory;
         _azureOpenAIUrl = $"{endPoint}{modelName}/chat/completions?api-version={apiVersion}";
+        _schemaLoader = new SchemaLoader(@".\Schemas");
     }
 
     public async Task<string> GetChatResponseAsync(string prompt)
@@ -68,7 +70,12 @@ public class AzureOpenAIService
                 },
             max_tokens = 4096,  // Define the maximum number of tokens
             temperature = 0.7,  // Optional, controls randomness of the response
-            response_format = new { type = "json_object" }
+            response_format = new { type="json_object" }
+            //response_format = new 
+            //{ 
+            //    type = "json_object", 
+            //    json_schema = _schemaLoader.LoadSchema("Insights.json")
+            //},
         };
 
         // Serialize the payload to JSON
