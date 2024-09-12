@@ -9,14 +9,12 @@ public class AzureOpenAIService
         You will be given structured JSON in the following format:
         ""sections"": [
             {
-              ""id"": 0,
               ""start"": ""0:00:00"",
               ""end"": ""0:00:28.12"",
               ""content"": ""[Video title] testName\n[Tags] Beginning\n[Visual labels] logo, font, colorfulness, tree, building, outdoor, sky, cloud, indoor, furniture, court\n[OCR] 08.26.24, DENVER, THE MILE HIGH CITY, CITY COUNCIL, LEGISLATIVE SESSION, NOW, DENVER CITY COUNCIL, WEEKLY LEGISLATIVE SESSION WITH ALL COUNCIL MEMBERS\n[Transcript] Welcome to your Denver City Council.\nPlease stand by.
-               \nFull coverage of your Denver City Council begins now.\nGood afternoon, everyone.""
+               Full coverage of your Denver City Council begins now.\nGood afternoon, everyone.""
             },
             {
-              ""id"": 1,
               ""start"": ""0:00:28.12"",
               ""end"": ""0:03:04.92"",
               ""content"": ""[Video title] testName\n[Tags] Beginning\n[Detected objects] chair, cup, laptop\n[Visual labels] indoor, furniture, human face, laptop, computer, person, 
@@ -28,18 +26,18 @@ public class AzureOpenAIService
 
         {
         ""extracted_decision"": [
-        {
-        ""start"": ""01:24:22"",
-        ""end"":""01:26:11"",
-        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
-            of snow days that took place during the school year""
-        },
-        {
-        ""start"": ""01:41:22"",
-        ""end"":""01:42:11"",
-        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
-        }]
-        }";
+            {
+            ""start"": ""01:24:22"",
+            ""end"":""01:26:11"",
+            ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
+                of snow days that took place during the school year""
+            },
+            {
+            ""start"": ""01:41:22"",
+            ""end"":""01:42:11"",
+            ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
+            }]
+            }";
 
     private readonly string _azureOpenAIUrl;
     private readonly string _apiKey;

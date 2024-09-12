@@ -7,6 +7,7 @@ namespace RssVideoProcessor
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Logging;
+    using Newtonsoft.Json.Linq;
     using System;
     using System.Text;
     using System.Web;
@@ -68,16 +69,9 @@ namespace RssVideoProcessor
 
                     if (promptContent.Sections != null)
                     {
-                        var contentBuilder = new StringBuilder();
+                        JObject sectionsJson = BuildVideoJsonAsync(promptContent);
 
-                        foreach (var section in promptContent.Sections)
-                        {
-                            contentBuilder.AppendLine(section.Content);
-                        }
-
-                        var combinedContent = contentBuilder.ToString();
-
-                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent);
+                        var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString());
                     }
                     else
                     {
@@ -131,16 +125,9 @@ namespace RssVideoProcessor
                 return new NoContentResult();
             }
 
-            var contentBuilder = new StringBuilder();
-
-            foreach (var section in promptContent.Sections)
-            {
-                contentBuilder.AppendLine(section.Content);
-            }
-
-            var combinedContent = contentBuilder.ToString();
-
-            var chatResponse = await _azureOpenAIService.GetChatResponseAsync(combinedContent);
+            JObject sectionsJson = BuildVideoJsonAsync(promptContent);
+             
+            var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString());
 
             return new OkObjectResult(chatResponse);
         }
@@ -244,6 +231,35 @@ namespace RssVideoProcessor
                 _logger.LogError(ex, "An error occurred during the video upload process.");
                 throw; // Optionally re-throw the exception if you want to propagate it
             }
+        }
+
+        private JObject BuildVideoJsonAsync(PromptContent promptContent)
+        {
+            // Initialize a JArray to hold all the sections
+            JArray sectionsArray = new JArray();
+
+            // Loop through each section in the PromptContent object
+            foreach (var section in promptContent.Sections)
+            {
+                // Create a JSON object for each section
+                JObject sectionObject = new JObject
+                {
+                    ["start"] = section.Start,    // Start time of the section
+                    ["end"] = section.End,        // End time of the section
+                    ["content"] = section.Content // Content details for the section
+                };
+
+                // Add the section to the sections array
+                sectionsArray.Add(sectionObject);
+            }
+
+            // Create the final JSON object to return
+            JObject videoJson = new JObject
+            {
+                ["sections"] = sectionsArray
+            };
+
+            return videoJson;
         }
     }
 
