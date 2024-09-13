@@ -38,26 +38,7 @@ public class AzureOpenAIService
 
         The rating value should always be either 1, 3, or 5.
 
-        You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response. An example response is shown below:
-
-        {
-        ""extracted_decision"": [
-        {
-        ""start"": ""01:24:22"",
-        ""end"":""01:26:11"",
-        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
-            of snow days that took place during the school year"".
-        ""thoughts"": ""The answer is correct because John mentioned the decision to extend the school day by 15 minutes each day to make up for the snow days."",
-        ""rating"": 5
-        },
-        {
-        ""start"": ""01:41:22"",
-        ""end"":""01:42:11"",
-        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school"",
-        ""thoughts"": ""The answer is incorrect because the ground truth answer did not contain this decision, so it is completely incorrect and should be rated 1 star."",
-        ""rating"": 1
-        }]
-        }
+        You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response.
 
         
         question: Using the provided context, please scan the content to determine if any key decisions were made.
@@ -93,26 +74,7 @@ public class AzureOpenAIService
 
         The rating value should always be either 1, 3, or 5.
 
-        You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response. An example response is shown below:
-
-        {
-        ""extracted_decision"": [
-        {
-        ""start"": ""01:24:22"",
-        ""end"":""01:26:11"",
-        ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
-            of snow days that took place during the school year"".
-        ""thoughts"": ""The answer is correct because John mentioned the decision to extend the school day by 15 minutes each day to make up for the snow days."",
-        ""rating"": 5
-        },
-        {
-        ""start"": ""01:41:22"",
-        ""end"":""01:42:11"",
-        ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school"",
-        ""thoughts"": ""The answer is incorrect because Judy did not mention adding an extra day of PE to each week of school."",
-        ""rating"": 1
-        }]
-        }
+        You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response.
 
         
         question: Using the provided context, please scan the content to determine if any key decisions were made.
@@ -138,22 +100,7 @@ public class AzureOpenAIService
             }
         ]
 
-        Each node of the JSON is a section extracted from the video analysis. If a key decision is made during the meeting, you will return the following list of JSON items for each key decision:
-
-        {
-        ""extracted_decision"": [
-            {
-            ""start"": ""01:24:22"",
-            ""end"":""01:26:11"",
-            ""key_decision"": ""John mentioned that the decision was made to extend the school day by 15 minutes each day in order to make up for the number 
-                of snow days that took place during the school year""
-            },
-            {
-            ""start"": ""01:41:22"",
-            ""end"":""01:42:11"",
-            ""key_decision"": ""Judy said that the decision was made to add an extra day of PE to each week of school""
-            }]
-            }";
+        Each node of the JSON is a section extracted from the video analysis. If a key decision is made during the meeting, you will add this to a list of JSON items for each key decision.";
 
     private readonly string _azureOpenAIUrl;
     private readonly string _apiKey;
