@@ -29,7 +29,7 @@ public class AzureOpenAIService
         }]
         }
 
-        You need to compare each extracted_decision item from both the generated answer and ground truth answer an score each extracted_decision of the answer between one to five using the following rating scale:
+        You need to compare each extracted_decision item from both the generated answer and ground truth answer and score each extracted_decision of the answer between one to five using the following rating scale:
         One: The answer is incorrect
         Three: The answer is partially correct, but could be missing some key context or nuance tha tmakes it potentially misleading or incomplete compared to the context provided.
         Five: The answer is correct and complete based on the context provided.
@@ -63,8 +63,6 @@ public class AzureOpenAIService
         question: Using the provided context, please scan the content to determine if any key decisions were made.
         ground_truth: {ground_truth}
         answer: {answer}
-        thoughts:
-        rating:
         ";
 
     // This prompt will be used to determine correctness of the LLM response by generating a rating and throughts for each key decision extracted from the answer.
@@ -120,8 +118,6 @@ public class AzureOpenAIService
         question: Using the provided context, please scan the content to determine if any key decisions were made.
         context: {context}
         answer: {answer}
-        thoughts:
-        rating:
         ";
 
     private const string SystemPrompt = @"
@@ -200,13 +196,9 @@ public class AzureOpenAIService
             temperature = 0.7,  // Optional, controls randomness of the response
             response_format = new
             {
-                type = "json_object"
-            }
-            //response_format = new
-            //{
-            //    type = "json_schema",
-            //    json_schema = _schemaLoader.LoadSchema("Insights.json")
-            //},
+                type = "json_schema",
+                json_schema = JObject.Parse(_schemaLoader.LoadSchema("Insights.json"))
+            },
         };
 
         // Serialize the payload to JSON
@@ -230,12 +222,12 @@ public class AzureOpenAIService
         Console.WriteLine(validatedResponse);
 
         // If we are not running a unit test, return the validated response which will include the score and thoughts
-        if (runUnitTest == "0" || string.IsNullOrWhiteSpace(runUnitTest))
+        /*if (runUnitTest == "0" || string.IsNullOrWhiteSpace(runUnitTest))
         {
             messageContent = validatedResponse;
-        }
+        }*/
 
-        return messageContent;
+        return validatedResponse;
     }
 
     /// <summary>
@@ -287,13 +279,9 @@ public class AzureOpenAIService
             temperature = 0.7,  // Optional, controls randomness of the response
             response_format = new
             {
-                type = "json_object"
-            }
-            //response_format = new
-            //{
-            //    type = "json_schema",
-            //    json_schema = _schemaLoader.LoadSchema("Insights.json")
-            //},
+                type = "json_schema",
+                json_schema = JObject.Parse(_schemaLoader.LoadSchema("Validation.json"))
+            },
         };
 
         // Serialize the payload to JSON
@@ -343,13 +331,9 @@ public class AzureOpenAIService
             temperature = 0.7,  // Optional, controls randomness of the response
             response_format = new
             {
-                type = "json_object"
-            }
-            /*response_format = new
-            {
                 type = "json_schema",
-                json_schema = _schemaLoader.LoadSchema("Validation.json")
-            }*/
+                json_schema = JObject.Parse(_schemaLoader.LoadSchema("Validation.json"))
+            }
         };
 
         // Serialize the payload to JSON

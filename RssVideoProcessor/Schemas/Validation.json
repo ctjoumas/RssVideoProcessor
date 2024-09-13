@@ -1,42 +1,41 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "extracted_decision": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "start": {
-            "type": "string",
-            "pattern": "^(\\d{2}):(\\d{2}):(\\d{2})$",
-            "description": "Time in HH:MM:SS format"
+  "name": "ValidationResponse",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "extracted_decision": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "Time in HH:MM:SS format"
+            },
+            "end": {
+              "type": "string",
+              "description": "Time in HH:MM:SS format"
+            },
+            "key_decision": {
+              "type": "string",
+              "description": "Description of the key decision made"
+            },
+            "thoughts": {
+              "type": "string",
+              "description": "Thoughts on the decision"
+            },
+            "rating": {
+              "type": "integer",
+              "description": "Rating of the decision"
+            }
           },
-          "end": {
-            "type": "string",
-            "pattern": "^(\\d{2}):(\\d{2}):(\\d{2})$",
-            "description": "Time in HH:MM:SS format"
-          },
-          "key_decision": {
-            "type": "string",
-            "description": "Description of the key decision made"
-          },
-          "thoughts": {
-            "type": "string",
-            "description": "Thoughts on the decision"
-          },
-          "rating": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 5,
-            "description": "Rating of the decision"
-          }
-        },
-        "required": [ "start", "end", "key_decision", "thoughts", "rating" ],
-        "additionalProperties": false
+          "required": [ "start", "end", "key_decision", "thoughts", "rating" ],
+          "additionalProperties": false
+        }
       }
-    }
-  },
-  "required": [ "extracted_decision" ],
-  "additionalProperties": false
+    },
+    "required": [ "extracted_decision" ],
+    "additionalProperties": false
+  }
 }
