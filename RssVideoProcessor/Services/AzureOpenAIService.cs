@@ -12,7 +12,7 @@ public class AzureOpenAIService
     // Similar to the CorrectnessPrompt below, this will measure correctness of the LLM response, but it will compare this against a ground truth response for a known video so it can tell whether or not
     // the proper decisions were pulled out of the video by the LLM.
     private string UnitTestCorrectnessPrompt = @"You are an AI evaluator.
-        The 'correctness metric' is a measure of if the generated answer is correct based on the ground truth answer. You will be given the generated answer and the ground truth answers, both of which will be a JSON list of extracted decisions in the following format:
+        The 'correctness metric' is a measure of if the generated answer is correct based on the ground truth answer. You will be given the generated answer and the ground truth answer, both of which will be a JSON list of extracted decisions in the following format:
 
         {
         ""extracted_decision"": [
@@ -39,6 +39,9 @@ public class AzureOpenAIService
         The rating value should always be either 1, 3, or 5.
 
         You will add your thoughts and rating for each key_decision into the key_decision JSON and return the JSON as the response.
+
+        If a key decision is present in the ground truth and is missing from the generated answer, you must add a key_decision with this ground truth, rate it as a 1, and explain in the thoughts that it is missing from the generated answer.
+        If a key decision is present in the generated answer and is missing from the ground truth, you must rate it as a 1, and explain in the thoughts that it is missing from the ground truth.
 
         
         question: Using the provided context, please scan the content to determine if any key decisions were made.
@@ -164,17 +167,13 @@ public class AzureOpenAIService
         // Extract the content from the message inside choices[0]
         var messageContent = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
 
-        string validatedResponse = await RunValidationAsync(promptContent, messageContent);
-
-        Console.WriteLine(validatedResponse);
-
-        // If we are not running a unit test, return the validated response which will include the score and thoughts
-        /*if (runUnitTest == "0" || string.IsNullOrWhiteSpace(runUnitTest))
+        // only generate the validation response if we are not running a unit test
+        if (runUnitTest == "0" || string.IsNullOrWhiteSpace(runUnitTest))
         {
-            messageContent = validatedResponse;
-        }*/
+            messageContent = await RunValidationAsync(promptContent, messageContent);
+        }
 
-        return validatedResponse;
+        return messageContent;
     }
 
     /// <summary>
