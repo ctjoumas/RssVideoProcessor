@@ -198,7 +198,10 @@ public class AzureOpenAIService
             },
             max_tokens = 4096,  // Define the maximum number of tokens
             temperature = 0.7,  // Optional, controls randomness of the response
-            response_format = "json_object"
+            response_format = new
+            {
+                type = "json_object"
+            }
             //response_format = new
             //{
             //    type = "json_schema",
@@ -248,7 +251,7 @@ public class AzureOpenAIService
         client.DefaultRequestHeaders.Add("api-key", _apiKey);
 
         // Testing bad response
-        answer = @"
+        /*answer = @"
         {  
           ""extracted_decision"": [  
             {  
@@ -268,7 +271,7 @@ public class AzureOpenAIService
             }
           ]  
         }  
-        ";
+        ";*/
 
         CorrectnessPrompt = CorrectnessPrompt.Replace("{context}", context);
         CorrectnessPrompt = CorrectnessPrompt.Replace("{answer}", answer);
@@ -282,7 +285,10 @@ public class AzureOpenAIService
             },
             max_tokens = 4096,  // Define the maximum number of tokens
             temperature = 0.7,  // Optional, controls randomness of the response
-            response_format = "json_object"
+            response_format = new
+            {
+                type = "json_object"
+            }
             //response_format = new
             //{
             //    type = "json_schema",
@@ -337,9 +343,13 @@ public class AzureOpenAIService
             temperature = 0.7,  // Optional, controls randomness of the response
             response_format = new
             {
+                type = "json_object"
+            }
+            /*response_format = new
+            {
                 type = "json_schema",
                 json_schema = _schemaLoader.LoadSchema("Validation.json")
-            }
+            }*/
         };
 
         // Serialize the payload to JSON
