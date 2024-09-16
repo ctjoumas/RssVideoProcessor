@@ -142,7 +142,7 @@ namespace RssVideoProcessor
             string runUnitTest = req.Query["runUnitTest"].ToString();
 
             var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString(), runUnitTest);
-            //var chatResponse = await _azureOpenAIService.GetChunkedChatResponseAsync(sectionsJson.ToString());
+            //var chatResponse = await _azureOpenAIService.ParallelCallsWithRetryAsync(sectionsJson);
 
             if (runUnitTest == "1")
             {
