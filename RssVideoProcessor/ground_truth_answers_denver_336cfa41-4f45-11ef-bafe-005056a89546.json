@@ -1,0 +1,79 @@
+{
+  "extracted_decision": [
+    {
+      "start": "00:23:00",
+      "end": "00:23:55",
+      "key_decision": "President seems frustrated by flow of information"
+    },
+    {
+      "start": "00:26:24",
+      "end": "00:26:55",
+      "key_decision": "Item was postponed with no motion/vote required"
+    },
+    {
+      "start": "00:27:24",
+      "end": "00:27:30",
+      "key_decision": "Another item was postponed with no motion/vote required"
+    },
+    {
+      "start": "00:30:14",
+      "end": "00:30:30",
+      "key_decision": "More postponements with no motion/vote reuqired"
+    },
+    {
+      "start": "00:43:25",
+      "end": "00:44:04",
+      "key_decision": "Postponement withdrawn"
+    },
+    {
+      "start": "00:43:50",
+      "end": "00:44:15",
+      "key_decision": "Block items postponed with no motion/vote required"
+    },
+    {
+      "start": "00:46:46",
+      "end": "00:47:00",
+      "key_decision": "Motion passes to postpone"
+    },
+    {
+      "start": "00:49:57",
+      "end": "00:50:10",
+      "key_decision": "Resolution approved for postponement with no motion/vote required"
+    },
+    {
+      "start": "00:51:12",
+      "end": "00:51:20",
+      "key_decision": "More postponements with no motion/vote required"
+    },
+    {
+      "start": "00:52:45",
+      "end": "00:53:00",
+      "key_decision": "A bunch of things voted on and passed for final consideration"
+    },
+    {
+      "start": "00:58:45",
+      "end": "00:59:00",
+      "key_decision": "Amendment passes vote - Colfax something changes to correct city legal posting issues"
+    },
+    {
+      "start": "01:15:58",
+      "end": "01:16:15",
+      "key_decision": "Bill and amendment passes approving the renewal of hte Colfax and Mayfair agreement"
+    },
+    {
+      "start": "01:18:44",
+      "end": "01:19:00",
+      "key_decision": "Amendment passes vote"
+    },
+    {
+      "start": "01:19:51",
+      "end": "01:20:00",
+      "key_decision": "Bill passes to be republished"
+    },
+    {
+      "start": "01:21:13",
+      "end": "01:21:22",
+      "key_decision": "Motion to postpone public hearing passes"
+    }
+  ]
+}
