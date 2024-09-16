@@ -20,6 +20,12 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="ground_truth_answers_denver_336cfa41-4f45-11ef-bafe-005056a89546.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="ground_truth_answers_denver_898469a9-4308-11ef-8c72-005056a89546.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="ground_truth_answers_denver_96ed4b5e-641d-11ef-9b71-005056a89546.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
