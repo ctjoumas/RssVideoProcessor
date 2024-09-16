@@ -20,7 +20,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="ground_truth_answers_vid1.json">
+    <None Update="ground_truth_answers_denver_96ed4b5e-641d-11ef-9b71-005056a89546.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="host.json">
