@@ -192,6 +192,28 @@ namespace RssVideoProcessor
             return new OkObjectResult(docResponse);
         }
 
+        [Function("GetIndexedPromptContent")]
+        public async Task<IActionResult> GetIndexedPromptContent([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
+        {
+            var indexedContent = string.Empty;
+            try
+            {
+                var videoName = req.Query["videoName"].ToString();
+                if (string.IsNullOrEmpty(videoName))
+                {
+                    return new BadRequestObjectResult("The 'videoName' query parameter is missing or empty.");
+                }
+
+                indexedContent = await _azureAiSearchService.GetPromptContentAsync(videoName);
+            }
+            catch (Exception exc)
+            {
+                Console.WriteLine(exc);
+            }
+
+            return new OkObjectResult(indexedContent);
+        }
+
         private async Task<PromptContent> GetPromptContentAsync(string videoId)
         {
             // Build Azure Video Indexer resource provider client that has access token throuhg ARM

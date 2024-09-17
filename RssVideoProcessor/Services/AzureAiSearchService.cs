@@ -4,6 +4,8 @@ using Azure.Search.Documents.Indexes.Models;
 using Newtonsoft.Json.Linq;
 using Azure.Search.Documents.Models;
 using Azure.AI.OpenAI;
+using Azure.Search.Documents;
+using static System.Collections.Specialized.BitVector32;
 
 namespace RssVideoProcessor.Services
 {
@@ -93,7 +95,49 @@ namespace RssVideoProcessor.Services
             return new SearchIndexerClient(new Uri(endPoint), new AzureKeyCredential(adminKey));
         }
 
-        internal SearchIndex GetSampleIndex()
+        public async Task<string> GetPromptContentAsync(string videoName)
+        {
+            var searchClient = _searchIndexClient.GetSearchClient(_searchIndexName);
+
+            var searchOptions = new SearchOptions
+            {
+                Size = 100
+            };
+
+            var results = await searchClient.SearchAsync<SearchDocument>($"videoName:{videoName}", searchOptions);
+            
+            // Initialize a JArray to hold all the sections
+            JArray sectionsArray = new JArray();
+
+            await foreach (SearchResult<SearchDocument> result in results.Value.GetResultsAsync())
+            {
+                var document = result.Document;
+                var start = document["start"].ToString();
+                var end = document["end"].ToString();
+                var content = document["content"].ToString();
+
+                // Create a JSON object for each section
+                var sectionObject = new JObject
+                {
+                    ["start"] = start,
+                    ["end"] = end,
+                    ["content"] = content
+                };
+
+                // Add the section to the sections array
+                sectionsArray.Add(sectionObject);
+            }
+
+            // Create the final JSON object to return
+            JObject videoJson = new JObject
+            {
+                ["sections"] = sectionsArray
+            };
+
+            return videoJson.ToString();
+        }
+
+        private SearchIndex GetSampleIndex()
         {
             string vectorSearchProfile = "prompt-content-vector-profile";
             string vectorSearchHnswConfig = "prompt-content-vector-config";
@@ -150,7 +194,7 @@ namespace RssVideoProcessor.Services
             return searchIndex;
         }
 
-        internal async Task<List<SearchDocument>> GetSampleDocumentsAsync(string videoId, string videoName, JObject promptContent)
+        private async Task<List<SearchDocument>> GetSampleDocumentsAsync(string videoId, string videoName, JObject promptContent)
         {
             var searchDocuments = new List<SearchDocument>();
 
