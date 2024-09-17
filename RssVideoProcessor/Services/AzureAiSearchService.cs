@@ -29,7 +29,6 @@ namespace RssVideoProcessor.Services
             var searchServiceEndPoint = Environment.GetEnvironmentVariable("SearchServiceEndPoint", EnvironmentVariableTarget.Process);
             var searchIndexName = Environment.GetEnvironmentVariable("SearchIndexName", EnvironmentVariableTarget.Process);
             var searchServiceAdminApiKey = Environment.GetEnvironmentVariable("SearchServiceAdminApiKey", EnvironmentVariableTarget.Process);
-            var searchServiceQueryApiKey = Environment.GetEnvironmentVariable("SearchServiceQueryApiKey", EnvironmentVariableTarget.Process);
             var azureOpenAiEmbeddingDeployedModel = Environment.GetEnvironmentVariable("AZURE_OPENAI_EMBEDDING_DEPLOYED_MODEL", EnvironmentVariableTarget.Process);
             _searchIndexName = Environment.GetEnvironmentVariable("SearchIndexName", EnvironmentVariableTarget.Process);
 
