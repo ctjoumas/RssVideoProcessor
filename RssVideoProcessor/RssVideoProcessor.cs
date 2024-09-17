@@ -4,9 +4,11 @@ namespace RssVideoProcessor
     using global::RssVideoProcessor.Services;
     using global::RssVideoProcessor.Util;
     using Microsoft.AspNetCore.Http;
+    using Microsoft.AspNetCore.Http.HttpResults;
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.Azure.Functions.Worker;
     using Microsoft.Extensions.Logging;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using System;
     using System.Text;
@@ -20,6 +22,7 @@ namespace RssVideoProcessor
         private AzureBlobService _azureBlobService;
         private static readonly HttpClient httpClient = new HttpClient() { DefaultRequestHeaders = { { "User-Agent", "Azure Function" } } };
         private AzureOpenAIService _azureOpenAIService;
+        private AzureAiSearchService _azureAiSearchService;
 
         public RssVideoProcessor(ILogger<RssVideoProcessor> logger, AzureOpenAIService azureOpenAIService)
         {
@@ -32,6 +35,7 @@ namespace RssVideoProcessor
             };
 
             _azureOpenAIService = azureOpenAIService;
+            _azureAiSearchService = new AzureAiSearchService();
         }
     
         /// <summary>
@@ -126,7 +130,9 @@ namespace RssVideoProcessor
             }
 
             var promptContent = await GetPromptContentAsync(req.Query["id"]);
-            
+            //var json = JsonConvert.SerializeObject(promptContent);
+            //Console.WriteLine(json);
+
             if (promptContent.Sections == null)
             {
                 return new NoContentResult();
@@ -150,6 +156,40 @@ namespace RssVideoProcessor
             }
 
             return new OkObjectResult(chatResponse);
+        }
+
+        [Function("IndexPromptContent")]
+        public async Task<IActionResult> IndexPromptContent([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
+        {
+            var docResponse = string.Empty;
+
+            try
+            {
+                var id = req.Query["id"].ToString();
+                if (string.IsNullOrEmpty(id))
+                {
+                    return new BadRequestObjectResult("The 'id' query parameter is missing or empty.");
+                }
+
+                var promptContent = await GetPromptContentAsync(req.Query["id"]);
+                //var json = JsonConvert.SerializeObject(promptContent);
+                //Console.WriteLine(json);
+
+                if (promptContent.Sections == null)
+                {
+                    return new NoContentResult();
+                }
+
+                JObject sectionsJson = BuildSectionsJsonAsync(promptContent);
+
+                docResponse = await _azureAiSearchService.IndexPromptContent(promptContent.VideoName, id, sectionsJson);
+            }
+            catch(Exception exc)
+            {
+                Console.WriteLine(exc);
+            }
+
+            return new OkObjectResult(docResponse);
         }
 
         private async Task<PromptContent> GetPromptContentAsync(string videoId)
