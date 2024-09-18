@@ -1,20 +1,20 @@
+using Azure.Storage.Blobs;
+using global::RssVideoProcessor.Services;
+using global::RssVideoProcessor.Util;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Text;
+using System.Web;
+using System.Xml;
+
 namespace RssVideoProcessor
 {
-    using Azure.Storage.Blobs;
-    using global::RssVideoProcessor.Services;
-    using global::RssVideoProcessor.Util;
-    using Microsoft.AspNetCore.Http;
-    using Microsoft.AspNetCore.Http.HttpResults;
-    using Microsoft.AspNetCore.Mvc;
-    using Microsoft.Azure.Functions.Worker;
-    using Microsoft.Extensions.Logging;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-    using System;
-    using System.Text;
-    using System.Web;
-    using System.Xml;
-
     public class RssVideoProcessor
     {
         private readonly ILogger<RssVideoProcessor> _logger;
@@ -205,6 +205,29 @@ namespace RssVideoProcessor
                 }
 
                 indexedContent = await _azureAiSearchService.GetPromptContentAsync(videoName);
+            }
+            catch (Exception exc)
+            {
+                Console.WriteLine(exc);
+            }
+
+            return new OkObjectResult(indexedContent);
+        }
+
+        [Function("SimpleVectorSearch")]
+        public async Task<IActionResult> SimpleVectorSearch([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
+        {
+            var indexedContent = string.Empty;
+
+            try
+            {
+                var text = req.Query["text"].ToString();
+                if (string.IsNullOrEmpty(text))
+                {
+                    return new BadRequestObjectResult("The 'text' query parameter is missing or empty.");
+                }
+
+                indexedContent = await _azureAiSearchService.SimpleVectorSearch(text);
             }
             catch (Exception exc)
             {

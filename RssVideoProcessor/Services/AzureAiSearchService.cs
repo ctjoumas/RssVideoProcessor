@@ -5,7 +5,6 @@ using Newtonsoft.Json.Linq;
 using Azure.Search.Documents.Models;
 using Azure.AI.OpenAI;
 using Azure.Search.Documents;
-using static System.Collections.Specialized.BitVector32;
 
 namespace RssVideoProcessor.Services
 {
@@ -105,8 +104,7 @@ namespace RssVideoProcessor.Services
             };
 
             var results = await searchClient.SearchAsync<SearchDocument>($"videoName:{videoName}", searchOptions);
-            
-            // Initialize a JArray to hold all the sections
+
             JArray sectionsArray = new JArray();
 
             await foreach (SearchResult<SearchDocument> result in results.Value.GetResultsAsync())
@@ -116,7 +114,6 @@ namespace RssVideoProcessor.Services
                 var end = document["end"].ToString();
                 var content = document["content"].ToString();
 
-                // Create a JSON object for each section
                 var sectionObject = new JObject
                 {
                     ["start"] = start,
@@ -124,17 +121,58 @@ namespace RssVideoProcessor.Services
                     ["content"] = content
                 };
 
-                // Add the section to the sections array
                 sectionsArray.Add(sectionObject);
             }
 
-            // Create the final JSON object to return
             JObject videoJson = new JObject
             {
                 ["sections"] = sectionsArray
             };
 
             return videoJson.ToString();
+        }
+
+        public async Task<string> SimpleVectorSearch(string text)
+        {
+            var searchClient = _searchIndexClient.GetSearchClient(_searchIndexName);
+
+            var queryEmbeddings = await GenerateEmbeddings(text);
+
+            var searchOptions = new SearchOptions
+            {
+                VectorSearch = new()
+                {
+                    Queries = { new VectorizedQuery(queryEmbeddings.ToArray()) { KNearestNeighborsCount = 5, Fields = { "contentVector" } } }
+                },
+                Size = 100,
+                Select = { "videoName", "start", "end", "content"}
+            };
+
+            SearchResults<SearchDocument> response = await searchClient.SearchAsync<SearchDocument>(null, searchOptions);
+            
+            JArray sectionsArray = new JArray();
+
+            await foreach (SearchResult<SearchDocument> result in response.GetResultsAsync())
+            {
+                var document = result.Document;
+                var start = document["start"].ToString();
+                var end = document["end"].ToString();
+                var content = document["content"].ToString();
+                var videoName = document["videoName"].ToString();
+
+                var sectionObject = new JObject
+                {
+                    ["searchScore"] = result.Score,
+                    ["videoName"] = videoName,
+                    ["start"] = start,
+                    ["end"] = end,
+                    ["content"] = content
+                };
+
+                sectionsArray.Add(sectionObject);
+            }
+
+            return sectionsArray.ToString();
         }
 
         private SearchIndex GetSampleIndex()
