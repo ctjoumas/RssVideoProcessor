@@ -1,18 +1,20 @@
+using Azure.Storage.Blobs;
+using global::RssVideoProcessor.Services;
+using global::RssVideoProcessor.Util;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Text;
+using System.Web;
+using System.Xml;
+
 namespace RssVideoProcessor
 {
-    using Azure.Storage.Blobs;
-    using global::RssVideoProcessor.Services;
-    using global::RssVideoProcessor.Util;
-    using Microsoft.AspNetCore.Http;
-    using Microsoft.AspNetCore.Mvc;
-    using Microsoft.Azure.Functions.Worker;
-    using Microsoft.Extensions.Logging;
-    using Newtonsoft.Json.Linq;
-    using System;
-    using System.Text;
-    using System.Web;
-    using System.Xml;
-
     public class RssVideoProcessor
     {
         private readonly ILogger<RssVideoProcessor> _logger;
@@ -20,6 +22,7 @@ namespace RssVideoProcessor
         private AzureBlobService _azureBlobService;
         private static readonly HttpClient httpClient = new HttpClient() { DefaultRequestHeaders = { { "User-Agent", "Azure Function" } } };
         private AzureOpenAIService _azureOpenAIService;
+        private AzureAiSearchService _azureAiSearchService;
 
         public RssVideoProcessor(ILogger<RssVideoProcessor> logger, AzureOpenAIService azureOpenAIService)
         {
@@ -32,6 +35,7 @@ namespace RssVideoProcessor
             };
 
             _azureOpenAIService = azureOpenAIService;
+            _azureAiSearchService = new AzureAiSearchService();
         }
     
         /// <summary>
@@ -126,7 +130,9 @@ namespace RssVideoProcessor
             }
 
             var promptContent = await GetPromptContentAsync(req.Query["id"]);
-            
+            //var json = JsonConvert.SerializeObject(promptContent);
+            //Console.WriteLine(json);
+
             if (promptContent.Sections == null)
             {
                 return new NoContentResult();
@@ -142,7 +148,7 @@ namespace RssVideoProcessor
             string runUnitTest = req.Query["runUnitTest"].ToString();
 
             var chatResponse = await _azureOpenAIService.GetChatResponseAsync(sectionsJson.ToString(), runUnitTest);
-            //var chatResponse = await _azureOpenAIService.GetChunkedChatResponseAsync(sectionsJson.ToString());
+            //var chatResponse = await _azureOpenAIService.ParallelCallsWithRetryAsync(sectionsJson);
 
             if (runUnitTest == "1")
             {
@@ -150,6 +156,85 @@ namespace RssVideoProcessor
             }
 
             return new OkObjectResult(chatResponse);
+        }
+
+        [Function("IndexPromptContent")]
+        public async Task<IActionResult> IndexPromptContent([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
+        {
+            var docResponse = string.Empty;
+
+            try
+            {
+                var id = req.Query["id"].ToString();
+                if (string.IsNullOrEmpty(id))
+                {
+                    return new BadRequestObjectResult("The 'id' query parameter is missing or empty.");
+                }
+
+                var promptContent = await GetPromptContentAsync(req.Query["id"]);
+                //var json = JsonConvert.SerializeObject(promptContent);
+                //Console.WriteLine(json);
+
+                if (promptContent.Sections == null)
+                {
+                    return new NoContentResult();
+                }
+
+                JObject sectionsJson = BuildSectionsJsonAsync(promptContent);
+
+                docResponse = await _azureAiSearchService.IndexPromptContent(promptContent.VideoName, id, sectionsJson);
+            }
+            catch(Exception exc)
+            {
+                Console.WriteLine(exc);
+            }
+
+            return new OkObjectResult(docResponse);
+        }
+
+        [Function("GetIndexedPromptContent")]
+        public async Task<IActionResult> GetIndexedPromptContent([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
+        {
+            var indexedContent = string.Empty;
+            try
+            {
+                var videoName = req.Query["videoName"].ToString();
+                if (string.IsNullOrEmpty(videoName))
+                {
+                    return new BadRequestObjectResult("The 'videoName' query parameter is missing or empty.");
+                }
+
+                indexedContent = await _azureAiSearchService.GetPromptContentAsync(videoName);
+            }
+            catch (Exception exc)
+            {
+                Console.WriteLine(exc);
+            }
+
+            return new OkObjectResult(indexedContent);
+        }
+
+        [Function("SimpleVectorSearch")]
+        public async Task<IActionResult> SimpleVectorSearch([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
+        {
+            var indexedContent = string.Empty;
+
+            try
+            {
+                var text = req.Query["text"].ToString();
+                if (string.IsNullOrEmpty(text))
+                {
+                    return new BadRequestObjectResult("The 'text' query parameter is missing or empty.");
+                }
+
+                indexedContent = await _azureAiSearchService.SimpleVectorSearch(text);
+            }
+            catch (Exception exc)
+            {
+                Console.WriteLine(exc);
+            }
+
+            return new OkObjectResult(indexedContent);
         }
 
         private async Task<PromptContent> GetPromptContentAsync(string videoId)

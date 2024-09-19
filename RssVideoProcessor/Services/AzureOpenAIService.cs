@@ -1,11 +1,9 @@
-﻿using Azure.Messaging;
-using Azure;
-using Microsoft.Identity.Client;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RssVideoProcessor.Schemas;
 using System.Text;
-using RssVideoProcessor.Schemas;
+using Polly.Retry;
+using Polly;
 
 public class AzureOpenAIService
 {
@@ -109,6 +107,20 @@ public class AzureOpenAIService
     private readonly string _apiKey;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ISchemaLoader _schemaLoader;
+    private static readonly SemaphoreSlim semaphore = new SemaphoreSlim(5); // Limit concurrency to 5 requests
+    private readonly HttpClient _retryClient;
+
+    // Retry policy with exponential backoff using Polly
+    private static readonly AsyncRetryPolicy<HttpResponseMessage> retryPolicy = Policy
+        .HandleResult<HttpResponseMessage>(response => response.StatusCode == (System.Net.HttpStatusCode)429) // Handle 429 responses
+        .WaitAndRetryAsync(
+            retryCount: 5, // Retry up to 5 times
+            sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)), // Exponential backoff
+            onRetry: (outcome, timespan, retryAttempt, context) =>
+            {
+                Console.WriteLine($"Retrying... Attempt: {retryAttempt} after {timespan.Seconds} seconds due to {outcome.Result.StatusCode}");
+            }
+        );
 
     public AzureOpenAIService(IHttpClientFactory httpClientFactory)
     {
@@ -119,6 +131,10 @@ public class AzureOpenAIService
         _httpClientFactory = httpClientFactory;
         _azureOpenAIUrl = $"{endPoint}{modelName}/chat/completions?api-version={apiVersion}";
         _schemaLoader = new SchemaLoader(@".\Schemas");
+
+        using HttpClient _retryClient = _httpClientFactory.CreateClient();
+        _retryClient.DefaultRequestHeaders.Add("api-key", _apiKey);
+        _retryClient.Timeout = TimeSpan.FromSeconds(60);
     }
 
     /// <summary>
@@ -301,76 +317,122 @@ public class AzureOpenAIService
         return messageContent;
     }
 
-    public async Task<string> GetChunkedChatResponseAsync(string prompt, int chunkSize = 3000)
+    public async Task<string> ParallelCallsWithRetryAsync(JObject sectionsJson)
     {
-        // Split the prompt into chunks of manageable size (below the token limit of 4096)
-        List<string> promptChunks = SplitIntoChunks(prompt, chunkSize);
+        var sectionsArray = sectionsJson["sections"] as JArray;
 
-        // Create a list of tasks to handle the API calls concurrently
-        List<Task<string>> tasks = new List<Task<string>>();
-
-        foreach (var chunk in promptChunks)
+        if (sectionsArray == null)
         {
-            tasks.Add(GetChatResponseAsync(chunk, string.Empty));
+            throw new ArgumentException("Invalid JSON format: 'sections' not found or not an array.");
         }
 
-        string[] responses = await Task.WhenAll(tasks);
-
-        // Initialize a list to aggregate the decisions
-        JArray aggregatedDecisions = new JArray();
-
-        // Iterate through each response, parse, and extract valid decisions
-        foreach (var response in responses)
+        var tasks = sectionsArray.Select(async section =>
         {
-            if (!string.IsNullOrWhiteSpace(response) && HasValidDecisions(response))
+            // Create a new JObject with the "sections" key to pass the correct structure
+            var sectionRequest = new JObject
             {
-                JObject parsedResponse = JObject.Parse(response);
-                JArray extractedDecision = (JArray)parsedResponse["extracted_decision"];
+                ["sections"] = new JArray(section) // Keep "sections" key, but only pass one section
+            };
 
-                if (extractedDecision != null && extractedDecision.Count > 0)
-                {
-                    // Add the extracted decisions from this chunk to the aggregated list
-                    aggregatedDecisions.Merge(extractedDecision);
-                }
+            // Call the retry method with the full "sections" structure
+            var response = await CallOpenAIWithRetryAsync(sectionRequest.ToString());
+            return response;
+        }).ToList();
+
+        // Wait for all tasks to complete and collect the response content
+        string[] responseContents = await Task.WhenAll(tasks);
+
+        List<ExtractedDecision> mergedDecisions = new List<ExtractedDecision>();
+
+        foreach (var jsonInput in responseContents)
+        {
+            var decisionContainer = JsonConvert.DeserializeObject<DecisionContainer>(jsonInput);
+            if (decisionContainer != null && decisionContainer.ExtractedDecision != null)
+            {
+                mergedDecisions.AddRange(decisionContainer.ExtractedDecision);
             }
         }
 
-        // Create the final structured response with "extracted_decision" at the top
-        JObject finalResponse = new JObject
+        // Now we create the final container with all decisions
+        var finalContainer = new DecisionContainer
         {
-            ["extracted_decision"] = aggregatedDecisions
+            ExtractedDecision = mergedDecisions
         };
 
-        return finalResponse.ToString();
+        string finalJson = JsonConvert.SerializeObject(finalContainer, Formatting.Indented);
+        
+        return finalJson;
     }
 
-    // Helper method to check if the response contains valid decisions
-    private bool HasValidDecisions(string jsonResponse)
+    // Method to call Azure OpenAI API with retry policy and semaphore
+    private async Task<string> CallOpenAIWithRetryAsync(string requestBody)
     {
-        if (string.IsNullOrWhiteSpace(jsonResponse))
+        // Ensure semaphore is in place for controlling concurrency
+        await semaphore.WaitAsync();
+
+        try
         {
-            return false;
+            // Wrap the API call with the retry policy to handle transient errors
+            var httpResponse = await retryPolicy.ExecuteAsync(async () =>
+            {
+                using HttpClient client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Add("api-key", _apiKey);
+
+                var requestPayload = new
+                {
+                    messages = new[]
+                    {
+                    new { role = "system", content = $"{SystemPrompt}\n\nOnly use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Context: {requestBody}" },
+                    new { role = "user", content = "Using the provided context, please scan the content to determine if any key decisions were made." }
+                },
+                    max_tokens = 4096,  // Define the maximum number of tokens
+                    temperature = 0.7,  // Optional, controls randomness of the response
+                    response_format = new
+                    {
+                        type = "json_schema",
+                        json_schema = JObject.Parse(_schemaLoader.LoadSchema("Insights.json"))
+                    },
+                };
+
+                var jsonPayload = JsonConvert.SerializeObject(requestPayload);
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync(_azureOpenAIUrl, content);
+
+                return response;
+            });
+
+            // Now process the HttpResponseMessage to extract the response content
+            var responseContent = await httpResponse.Content.ReadAsStringAsync();
+
+            // Parse the JSON response
+            JObject jsonResponse = JObject.Parse(responseContent);
+
+            // Extract the content from the message inside choices[0]
+            var messageContent = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
+
+            return messageContent;
         }
-
-        JObject parsedResponse = JObject.Parse(jsonResponse);
-        JArray extractedDecision = (JArray)parsedResponse["extracted_decision"];
-
-        return extractedDecision != null && extractedDecision.Count > 0;
+        finally
+        {
+            // Release the semaphore once the request is complete
+            semaphore.Release();
+        }
     }
 
-    private List<string> SplitIntoChunks(string text, int chunkSize)
+    internal class ExtractedDecision
     {
-        List<string> chunks = new List<string>();
+        [JsonProperty("start")]
+        public string? start { get; set; }
+        [JsonProperty("end")]
+        public string? end { get; set; }
+        [JsonProperty("key_decision")]
+        public string? key_decision { get; set; }
+    }
 
-        // Start splitting the text into chunks of the specified size
-        for (int i = 0; i < text.Length; i += chunkSize)
-        {
-            // Ensure we don't exceed the length of the text
-            int length = Math.Min(chunkSize, text.Length - i);
-
-            chunks.Add(text.Substring(i, length));
-        }
-
-        return chunks;
+    internal class DecisionContainer
+    {
+        [JsonProperty("extracted_decision")]
+        public List<ExtractedDecision>? ExtractedDecision { get; set; }
     }
 }
