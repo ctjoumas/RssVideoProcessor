@@ -86,7 +86,7 @@ public class AzureOpenAIService
         ";
 
     private const string SystemPrompt = @"
-        You are an AI assistant that analyzes insights from a video and extracts important moments that occurred made in the meetings from the speakers to include key decisions made as well as any heightened emotions such as excitement, anger, or sadness.
+        You are an AI assistant that analyzes insights from a video and extracts important moments that occurred made in the meetings from the speakers to include key decisions made as well as any emotions exhibited such as excitement, anger, or sadness.
         You will be given structured JSON in the following format:
         ""sections"": [
             {
@@ -141,7 +141,7 @@ public class AzureOpenAIService
             {
                 new { role = "system", content = $"{SystemPrompt}\n\n Only use the provided context, do not reply otherwise. Only return properly structured JSON as the response. Context: {promptContent}" },
                 //new { role = "user", content = "Using the provided context, please scan the content to determine if any key decisions were made." }
-                new { role = "user", content = "Using the provided context, please identify and include any resolutions or bills that are voted on, regardless of the outcome (e.g., adopted, postponed, amended), as key decisions in the analysis. Ensure that all formal actions taken by the council are captured in the extracted decisions. Also identify any highly emotional moments, including those regarding logistics and processes of the meeting." }
+                new { role = "user", content = "Using the provided context, please identify and include any resolutions or bills that are voted on, regardless of the outcome (e.g., adopted, postponed, amended), as key decisions in the analysis. Ensure that all formal actions taken by the council are captured in the extracted decisions. Also identify any highly emotional moments such as laughter, sadness, crying, or anger." }
             },
             max_tokens = 4096,  // Define the maximum number of tokens
             temperature = 0.7,  // Optional, controls randomness of the response
